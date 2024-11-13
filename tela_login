@@ -1,0 +1,120 @@
+from tkinter import *
+from tkinter import ttk
+import sqlite3
+
+janela = Tk()
+
+def apply_style():
+    style = ttk.Style()
+    style.theme_use("clam")
+    style.configure("TLabel", font=("Helvetica", 14), foreground="black", background="white", padding=5)
+    style.configure("TButton", font=("Helvetica", 12), padding=5, background="black", foreground="white")
+
+def show_login_window():
+    login_janela = Tk()
+    login_janela.title("LogIn")
+    login_janela.geometry("400x250")
+    login_janela.configure(bg="white")
+    apply_style()
+
+    def login_database():
+        conn = sqlite3.connect("1.db")
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM test WHERE email=? AND senha=?", (e1.get(), e2.get()))
+        row = cur.fetchall()
+        conn.close()
+        if row:
+            nome_usuario = row[0][1]
+            l3.config(text="Seu usuario foi encontrado! Seja bem vindo(a): " + nome_usuario)
+
+        else:
+            l3.config(text="Usuario não encontrado!")
+
+    l1 = ttk.Label(login_janela, text="Email: ")
+    l1.grid(row=1, column=0, padx=10, pady=10)
+    l2 = ttk.Label(login_janela, text="senha: ")
+    l2.grid(row=2, column=0, padx=10, pady=10)
+    l3 = ttk.Label(login_janela)
+    l3.grid(row=6, column=1, padx=10, pady=10)
+
+    email_text = StringVar()
+    e1 = ttk.Entry(login_janela, textvariable=email_text)
+    e1.grid(row=1, column=1, padx=10, pady=10)
+    senha_text = StringVar()
+    e2 = ttk.Entry(login_janela, textvariable=senha_text, show='*')
+    e2.grid(row=2, column=1, padx=10, pady=10)
+
+    b = ttk.Button(login_janela, text="Login", width=20, command=login_database)
+    b.grid(row=4, column=1, padx=10, pady=10)
+    back_button = ttk.Button(login_janela, text="Voltar", width=20, command=login_janela.destroy)
+    back_button.grid(row=5, column=1, padx=10, pady=10)
+
+    login_janela.mainloop()
+
+def show_signup_window():
+    signup_janela = Tk()
+    signup_janela.geometry("400x250")
+    signup_janela.title("Cadastre-se")
+    signup_janela.configure(bg="white")
+    apply_style()
+
+    def signup_database():
+        conn = sqlite3.connect("1.db")
+        cur = conn.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, email text, senha text, professor INTEGER)")
+        cur.execute("INSERT INTO usuarios Values(?, ?, ?, ?)", (e1.get(), e2.get(), e3.get(), 0))
+        l4 = ttk.Label(signup_janela, text="Conta criada!", font=("Helvetica", 12
+        ), foreground="#2ecc71")
+        l4.grid(row=6, column=2, padx=10, pady=10)
+        conn.commit()
+        conn.close()
+
+    l1 = ttk.Label(signup_janela, text="Matricula: ")
+    l1.grid(row=1, column=1, padx=10, pady=10)
+    l2 = ttk.Label(signup_janela, text="Email: ")
+    l2.grid(row=2, column=1, padx=10, pady=10)
+    l3 = ttk.Label(signup_janela, text="Senha: ")
+    l3.grid(row=3, column=1, padx=10, pady=10)
+
+    name_text = StringVar()
+    e1 = ttk.Entry(signup_janela, textvariable=name_text)
+    e1.grid(row=1, column=2, padx=10, pady=10)
+    email_text = StringVar()
+    e2 = ttk.Entry(signup_janela, textvariable=email_text)
+    e2.grid(row=2, column=2, padx=10, pady=10)
+    password_text = StringVar()
+    e3 = ttk.Entry(signup_janela, textvariable=password_text, show='*')
+    e3.grid(row=3, column=2, padx=10, pady=10)
+
+    b1 = ttk.Button(signup_janela, text="Cadastre-se", width=20, command=signup_database)
+    b1.grid(row=4, column=2, padx=10, pady=10)
+    back_button = ttk.Button(signup_janela, text="Voltar", width=20, command=signup_janela.destroy)
+    back_button.grid(row=5, column=2, padx=10, pady=10)
+
+    signup_janela.mainloop()
+
+def main():
+    conexao = sqlite3.connect("1.db")
+    cur = conexao.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS materias(id INTEGER PRIMARY KEY, nome text)")
+    ###### EXECUTAR SOMENTE NA PRIMEIRA EXECUÇÃO DO PROGRAMA ######
+    # cur.execute("INSERT INTO materias Values (null, 'POOJava'), (null, 'RAD'), (null, 'BigData')")
+    
+    conexao.commit()
+    conexao.close()
+
+    janela.geometry("430x200")  # Ajuste aqui para definir o tamanho apropriado
+    janela.title("Janela de Login ou cadastro")
+    janela.configure(bg="white")
+    apply_style()
+
+    label1 = ttk.Label(janela, text="Faça seu login ou cadastre-se! ;)", font=("Helvetica", 16), background="white")
+    label1.grid(row=1, column=2, columnspan=2, pady=20)
+    button1 = ttk.Button(janela, text="Login", width=20, command=show_login_window)
+    button1.grid(row=2, column=2, padx=10, pady=10)
+    button2 = ttk.Button(janela, text="Cadastre-se", width=20, command=show_signup_window)
+    button2.grid(row=2, column=3, padx=10, pady=10)
+
+    janela.mainloop()
+
+main()
