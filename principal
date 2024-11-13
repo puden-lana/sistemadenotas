@@ -1,0 +1,386 @@
+from tkinter import *
+from tkinter import ttk, messagebox
+import tkinter as tk
+import sqlite3
+
+# Configurações de janela principal
+janela = Tk()
+
+def apply_style():
+    style = ttk.Style()
+    style.theme_use("clam")
+    style.configure("TLabel", font=("Helvetica", 14), foreground="black", background="white", padding=5)
+    style.configure("TButton", font=("Helvetica", 12), padding=5, background="black", foreground="white")
+
+# Função para abrir a janela de notas
+def abrir_tela_notas():
+    notas_janela = Tk()
+    notas_janela.title("Tabela de Notas dos Alunos")
+
+    # Funções da tabela de notas
+    def exibir_dados():
+        conn = sqlite3.connect("1.db")
+        cursor = conn.cursor()
+        consulta = """
+        SELECT m.nome AS disciplina, 
+        u.id AS matricula, 
+        n.sim1, n.sim2, n.av, n.avs, n.nova_chance
+        FROM notas n
+        JOIN materias m ON n.materia_id = m.id
+        JOIN usuarios u ON n.usuarios_id = u.id;
+        """
+        atributos_notas = """CREATE TABLE IF NOT EXISTS notas (
+        id INTEGER PRIMARY KEY,
+        materia_id INTEGER,
+        usuarios_id INTEGER,
+        sim1 REAL,
+        sim2 REAL,
+        av REAL,
+        avs REAL,
+        nova_chance REAL,
+        FOREIGN KEY (materia_id) REFERENCES materias(id),
+        FOREIGN KEY (usuarios_id) REFERENCES usuarios(id)
+        )"""
+
+        cursor.execute(atributos_notas)
+        cursor.execute(consulta)
+
+        dados = cursor.fetchall()
+        for item in tabela.get_children():
+            tabela.delete(item)
+        for linha in dados:
+            tabela.insert("", "end", values=linha)
+        conn.close()
+
+    def atualizar_notas():
+        conn = sqlite3.connect("1.db")
+        cursor = conn.cursor()
+        materia = combo_disciplina.get()
+        matricula = entry_matricula.get()
+        sim1 = entry_sim1.get()
+        sim2 = entry_sim2.get()
+        av = entry_av.get()
+        avs = entry_avs.get()
+        nova_chance = entry_nova_chance.get()
+        cursor.execute("""
+        UPDATE notas SET sim1 = ?, sim2 = ?, av = ?, avs = ?, nova_chance = ?
+        WHERE materia_id = (SELECT id FROM materias WHERE nome = ?) AND usuarios_id = ?;
+        """, (sim1, sim2, av, avs, nova_chance, materia, matricula))
+        conn.commit()
+        conn.close()
+
+        entry_matricula.delete(0, tk.END)
+        entry_sim1.delete(0, tk.END)
+        entry_sim2.delete(0, tk.END)
+        entry_av.delete(0, tk.END)
+        entry_avs.delete(0, tk.END)
+        entry_nova_chance.delete(0, tk.END)
+
+        exibir_dados()
+
+    def verificar_aprovacao():
+    # Conectar ao banco de dados
+        conn = sqlite3.connect("1.db")
+        cursor = conn.cursor()
+        
+        # Obter a matrícula do aluno e a disciplina
+        matricula = entry_matricula.get()
+        materia = combo_disciplina.get()
+
+        # Consulta para obter as notas do aluno para a disciplina selecionada
+        consulta = """
+        SELECT sim1, sim2, av, avs, nova_chance 
+        FROM notas 
+        WHERE usuarios_id = ? AND materia_id = (SELECT id FROM materias WHERE nome = ?);
+        """
+        cursor.execute(consulta, (matricula, materia))
+        notas = cursor.fetchone()
+
+        if notas:
+            # Calcula a soma das notas do sim1, sim2 e av
+            sim1, sim2, av, avs, nova_chance = notas
+            soma_notas = sim1 + sim2 + av
+            
+            # Verifica se a soma é menor que 6
+            if soma_notas < 6:
+                # O aluno deve tirar 6 em uma das provas avs ou nova chance
+                if avs >= 6 or nova_chance >= 6:
+                    status = "Aprovado"
+                else:
+                    status = "Reprovado"
+            else:
+                status = "Aprovado"
+
+            messagebox.showinfo("Resultado da Verificação", f"Status: {status}")
+        else:
+            messagebox.showwarning("Aviso", "Nenhuma nota encontrada para esta matrícula e disciplina.")
+
+        # Fecha a conexão com o banco de dados
+        conn.close()
+
+    def adicionar_notas():
+        # Conectar ao banco de dados
+        conn = sqlite3.connect("1.db")
+        cursor = conn.cursor()
+
+        # Obter os valores dos campos de entrada
+        materia = combo_disciplina.get()
+        matricula = entry_matricula.get()
+        sim1 = entry_sim1.get()
+        sim2 = entry_sim2.get()
+        av = entry_av.get()
+        avs = entry_avs.get()
+        nova_chance = entry_nova_chance.get()
+
+        try:
+            # Adiciona novas notas no banco de dados
+            cursor.execute("""
+            INSERT INTO notas (materia_id, usuarios_id, sim1, sim2, av, avs, nova_chance) 
+            VALUES (
+                (SELECT id FROM materias WHERE nome = ?),
+                ?, ?, ?, ?, ?, ?);
+            """, (materia, matricula, sim1, sim2, av, avs, nova_chance))
+            
+            # Salva as alterações
+            conn.commit()
+            messagebox.showinfo("Sucesso", "Notas adicionadas com sucesso!")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Ocorreu um erro ao adicionar notas: {e}")
+        
+        # Fecha a conexão com o banco de dados
+        conn.close()
+
+        # Limpa os campos de entrada após a adição
+        entry_matricula.delete(0, tk.END)
+        entry_sim1.delete(0, tk.END)
+        entry_sim2.delete(0, tk.END)
+        entry_av.delete(0, tk.END)
+        entry_avs.delete(0, tk.END)
+        entry_nova_chance.delete(0, tk.END)
+        
+        # Atualiza a tabela para refletir as mudanças
+        exibir_dados()
+
+    # Interface de Tabela e Atualização
+    colunas = ["Disciplina", "Matrícula", "Sim1", "Sim2", "AV", "AVS", "Nova Chance"]
+    tabela = ttk.Treeview(notas_janela, columns=colunas, show='headings')
+
+    for coluna in colunas:
+        tabela.heading(coluna, text=coluna)
+        tabela.column(coluna, width=100)
+    tabela.pack(fill='both', expand=True)
+    botao_exibir = Button(notas_janela, text="Exibir Dados", command=exibir_dados)
+    botao_exibir.pack(pady=10)
+    frame_atualizar = Frame(notas_janela)
+    frame_atualizar.pack(pady=10)
+    ttk.Label(frame_atualizar, text="Disciplina:").grid(row=0, column=0)
+    combo_disciplina = ttk.Combobox(frame_atualizar, values=["POOJava", "RAD", "BigData"])
+    combo_disciplina.grid(row=0, column=1)
+    ttk.Label(frame_atualizar, text="Matrícula:").grid(row=1, column=0)
+    entry_matricula = Entry(frame_atualizar)
+    entry_matricula.grid(row=1, column=1)
+    ttk.Label(frame_atualizar, text="Sim1:").grid(row=2, column=0)
+    entry_sim1 = Entry(frame_atualizar)
+    entry_sim1.grid(row=2, column=1)
+    ttk.Label(frame_atualizar, text="Sim2:").grid(row=3, column=0)
+    entry_sim2 = Entry(frame_atualizar)
+    entry_sim2.grid(row=3, column=1)
+    ttk.Label(frame_atualizar, text="AV:").grid(row=4, column=0)
+    entry_av = Entry(frame_atualizar)
+    entry_av.grid(row=4, column=1)
+    ttk.Label(frame_atualizar, text="AVS:").grid(row=5, column=0)
+    entry_avs = Entry(frame_atualizar)
+    entry_avs.grid(row=5, column=1)
+    ttk.Label(frame_atualizar, text="Nova Chance:").grid(row=6, column=0)
+    entry_nova_chance = Entry(frame_atualizar)
+    entry_nova_chance.grid(row=6, column=1)
+    
+    #Botão para atualizar as notas
+    botao_atualizar = Button(frame_atualizar, text="Atualizar Notas", command=atualizar_notas)
+    botao_atualizar.grid(row=7, column=0, columnspan=2, pady=10)
+
+    # Botão para adicionar novas notas
+    botao_adicionar = Button(frame_atualizar, text="Adicionar Novas Notas", command=adicionar_notas)
+    botao_adicionar.grid(row=8, column=0, columnspan=2, pady=10)
+
+    # botão para verificar se o aluno está aprovado
+    botao_verificar = Button(frame_atualizar, text="Verificar Aprovação", command=verificar_aprovacao)
+    botao_verificar.grid(row=9, column=0, columnspan=2, pady=10)
+
+    # botão para fechar a janela de notas
+    botao_voltar = Button(frame_atualizar, text="Voltar", command=notas_janela.destroy)
+    botao_voltar.grid(row=10, column=0, columnspan=2, pady=10)
+
+verific_prof = 0
+
+def abrir_tela_matricula():
+    signup_janela = Tk()
+    signup_janela.geometry("400x250")
+    apply_style()
+    def signup_database():
+        conn = sqlite3.connect("1.db")
+        cur = conn.cursor()
+        email = email_signup.get()
+        global verific_prof
+
+        if "professor" in email:
+            verific_prof = 1
+            print(verific_prof)
+        elif "alunos" in email:
+            verific_prof = 0
+            print(verific_prof)
+        else:
+            print ("ERRO.")
+
+        cur.execute("INSERT INTO usuarios (id, email, senha, professor) Values (?, ?, ?, ?)", (mat_signup.get(), email, senha_signup.get(), verific_prof))
+        conn.commit()
+        conn.close()
+
+        signup_janela.destroy()
+
+
+    l1 = ttk.Label(signup_janela, text="Matricula: ")
+    l1.grid(row=1, column=1, padx=10, pady=10)
+
+    l2 = ttk.Label(signup_janela, text="Email: ")
+    l2.grid(row=2, column=1, padx=10, pady=10)
+
+    l3 = ttk.Label(signup_janela, text="Senha: ")
+    l3.grid(row=3, column=1, padx=10, pady=10)
+
+    mat_signup = ttk.Entry(signup_janela)
+    mat_signup.grid(row=1, column=2, padx=10, pady=10)
+
+    email_signup = ttk.Entry(signup_janela)
+    email_signup.grid(row=2, column=2, padx=10, pady=10)
+
+    senha_signup = ttk.Entry(signup_janela, show='*')
+    senha_signup.grid(row=3, column=2, padx=10, pady=10)
+
+    botao_cadastro = ttk.Button(signup_janela, text="Cadastre-se", width=20, command=signup_database)
+    botao_cadastro.grid(row=4, column=2, padx=10, pady=10)
+
+    signup_janela.mainloop()
+
+email_login = ""
+
+def show_tabela_window(email_usuario):
+    tabela_janela = Toplevel()
+    tabela_janela.title("Tabela de Notas")
+    tabela_janela.geometry("600x400")
+    
+    colunas = ["Disciplina", "Sim1", "Sim2", "AV", "AVS", "Nova Chance"]
+    global tabela
+    tabela = ttk.Treeview(tabela_janela, columns=colunas, show='headings')
+    
+    for coluna in colunas:
+        tabela.heading(coluna, text=coluna)
+        tabela.column(coluna, width=100)
+    
+    tabela.pack(fill='both', expand=True)
+    
+    exibir_notas_por_email(email_usuario)  # Chama a função para exibir as notas do aluno específico
+
+def exibir_notas_por_email(email):
+    # Conectar ao banco de dados
+    conn = sqlite3.connect("1.db")
+    cursor = conn.cursor()
+   
+    cursor.execute("SELECT id FROM usuarios WHERE email=?", (email,))
+    resultado = cursor.fetchone()
+    
+    if resultado:
+        matricula = resultado[0]
+        
+        # Consulta SQL para buscar as notas do aluno usando sua matrícula
+        consulta = """
+        SELECT
+            m.nome AS disciplina,
+            n.sim1, n.sim2, n.av, n.avs, n.nova_chance
+        FROM
+            notas n
+        JOIN
+            materias m ON n.materia_id = m.id
+        WHERE
+            n.usuarios_id = ?;
+        """
+        
+        cursor.execute(consulta, (matricula,))
+        dados = cursor.fetchall()
+        
+        # Limpa os dados existentes no Treeview
+        for item in tabela.get_children():
+            tabela.delete(item)
+       
+        # Insere os dados no Treeview
+        for linha in dados:
+            tabela.insert("", "end", values=linha)
+    else:
+        messagebox.showwarning("Erro", "Email não encontrado!")
+
+    
+    conn.close()
+
+def abrir_tela_login():
+    login_janela = Tk()
+    login_janela.title("LogIn")
+    login_janela.geometry("400x250")
+    apply_style()
+    def login_database():
+        conn = sqlite3.connect("1.db")
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM usuarios WHERE email=? AND senha=?", (email_login.get(), senha_login.get()))
+        row = cur.fetchone()
+        conn.close()
+        if row:
+            verific_prof = row[3]
+            print(verific_prof)
+            if verific_prof == 1:
+                abrir_tela_notas()  
+                login_janela.destroy()
+            elif verific_prof == 0:
+                email_usuario = row[1] 
+                show_tabela_window(email_usuario)
+                login_janela.destroy()
+        else:
+            messagebox.showwarning("Erro", "Usuário não encontrado!")
+
+    
+
+    l1 = ttk.Label(login_janela, text="Email: ")
+    l1.grid(row=1, column=0, padx=10, pady=10)
+    l2 = ttk.Label(login_janela, text="Senha: ")
+    l2.grid(row=2, column=0, padx=10, pady=10)
+    l3 = ttk.Label(login_janela)
+    l3.grid(row=6, column=1, padx=10, pady=10)
+    email_text = StringVar()
+
+    global email_login, senha_login
+
+    email_login = ttk.Entry(login_janela, textvariable=email_text)
+    email_login.grid(row=1, column=1, padx=10, pady=10)
+    senha_text = StringVar()
+
+    senha_login = ttk.Entry(login_janela, textvariable=senha_text, show='*')
+    senha_login.grid(row=2, column=1, padx=10, pady=10)
+
+    botao_login = ttk.Button(login_janela, text="Login", width=20, command=login_database)
+    botao_login.grid(row=4, column=1, padx=10, pady=10)
+
+    login_janela.mainloop()
+
+
+def main():
+    janela.geometry("430x200")
+    janela.title("Janela de Login ou Cadastro")
+    apply_style()
+    label1 = ttk.Label(janela, text="Faça seu login ou cadastre-se! ;)", font=("Helvetica", 16))
+    label1.grid(row=1, column=2, columnspan=2, pady=20)
+    button1 = ttk.Button(janela, text="Login", width=20, command=abrir_tela_login)
+    button1.grid(row=2, column=2, padx=10, pady=10)
+    button2 = ttk.Button(janela, text="Cadastre-se", width=20, command=abrir_tela_matricula)
+    button2.grid(row=2, column=3, padx=10, pady=10)
+    
+    janela.mainloop()
+
+main()
